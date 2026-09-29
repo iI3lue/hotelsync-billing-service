@@ -17,6 +17,10 @@ export const folioIdParamSchema = z.object({
   id: z.string().uuid(),
 });
 
+export const folioBookingParamSchema = z.object({
+  bookingId: z.string().uuid(),
+});
+
 export const guestIdParamSchema = z.object({
   id: z.string().uuid(),
 });

@@ -3,6 +3,7 @@ import { billingController } from "../controllers/billing.controller.js";
 import { validate } from "../middleware/validate.js";
 import {
   closeFolioSchema,
+  folioBookingParamSchema,
   folioIdParamSchema,
   guestIdParamSchema,
   listFoliosQuerySchema,
@@ -19,6 +20,11 @@ router.get(
   "/guest/:id",
   validate(guestIdParamSchema, "params"),
   billingController.listFoliosByGuest.bind(billingController)
+);
+router.get(
+  "/by-booking/:bookingId",
+  validate(folioBookingParamSchema, "params"),
+  billingController.getFolioByBooking.bind(billingController)
 );
 router.get(
   "/:id",

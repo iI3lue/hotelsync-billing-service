@@ -57,6 +57,29 @@ export class BillingService {
   }
 
   /**
+   * Folio de una reserva con cargos y factura (si ya cerró).
+   * Pensado para la demo de recepción: tras el check-out el front consulta
+   * por booking_id y espera la factura que emite el consumer de billing.
+   * Si el folio aún no existe (el evento va en camino), 404 para reintentar.
+   */
+  async getFolioByBooking(bookingId: string) {
+    const folio = await prisma.folio.findUnique({
+      where: { booking_id: bookingId },
+      include: { charges: true, invoice: true },
+    });
+
+    if (!folio) {
+      throw new AppError(
+        404,
+        `Folio for booking ${bookingId} not found yet`,
+        "Not Found"
+      );
+    }
+
+    return folio;
+  }
+
+  /**
    * Acumula un cargo de servicio en el folio abierto (BL-1:
    * minibar, spa, restaurante, otros). Mantiene `folios.total`
    * sincronizado (documento de arquitectura §5.7).

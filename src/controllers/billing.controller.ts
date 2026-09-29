@@ -20,6 +20,17 @@ export class BillingController {
     }
   }
 
+  async getFolioByBooking(req: Request, res: Response, next: NextFunction) {
+    try {
+      const folio = await billingService.getFolioByBooking(
+        req.params.bookingId as string
+      );
+      res.json(folio);
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async addCharge(req: Request, res: Response, next: NextFunction) {
     try {
       const { folio_id, ...charge } = req.body as {
