@@ -1,5 +1,6 @@
 import prisma from "../lib/prisma.js";
 import { AppError } from "../middleware/error-handler.js";
+import type { AuthClaims } from "../lib/auth.js";
 import { fetchBooking } from "../lib/booking-client.js";
 import { fetchHotel } from "../lib/property-client.js";
 import { enqueueOutboxEvent } from "../lib/outbox.js";
@@ -29,12 +30,28 @@ function folioSubtotal(folio: FolioWithCharges): number {
   );
 }
 
+const BILLING_ROLES = ["RECEPTIONIST", "MANAGER"];
+
+function requireHotelAccess(actor: AuthClaims, hotelId: string): void {
+  if (actor.role === "SUPER_ADMIN") return;
+  if (!BILLING_ROLES.includes(actor.role) || actor.hotel_id !== hotelId) {
+    throw new AppError(403, "Not allowed for this hotel", "Forbidden");
+  }
+}
+
+function scopedHotelId(queryHotelId: string, actor: AuthClaims): string {
+  if (actor.role === "SUPER_ADMIN") return queryHotelId;
+  requireHotelAccess(actor, queryHotelId);
+  return actor.hotel_id as string;
+}
+
 export class BillingService {
   /** Folios por hotel y estado. */
-  async listFolios(query: ListFoliosQuery) {
+  async listFolios(query: ListFoliosQuery, actor: AuthClaims) {
+    const hotelId = scopedHotelId(query.hotel_id, actor);
     return prisma.folio.findMany({
       where: {
-        hotel_id: query.hotel_id,
+        hotel_id: hotelId,
         ...(query.status ? { status: query.status } : {}),
       },
       include: { charges: true },
@@ -43,7 +60,7 @@ export class BillingService {
   }
 
   /** Folio con cargos y factura (si está cerrado). */
-  async getFolio(id: string) {
+  async getFolio(id: string, actor: AuthClaims) {
     const folio = await prisma.folio.findUnique({
       where: { folio_id: id },
       include: { charges: true, invoice: true },
@@ -52,17 +69,16 @@ export class BillingService {
     if (!folio) {
       throw new AppError(404, `Folio with id ${id} not found`, "Not Found");
     }
+    requireHotelAccess(actor, folio.hotel_id);
 
     return folio;
   }
 
   /**
    * Folio de una reserva con cargos y factura (si ya cerró).
-   * Pensado para la demo de recepción: tras el check-out el front consulta
-   * por booking_id y espera la factura que emite el consumer de billing.
    * Si el folio aún no existe (el evento va en camino), 404 para reintentar.
    */
-  async getFolioByBooking(bookingId: string) {
+  async getFolioByBooking(bookingId: string, actor: AuthClaims) {
     const folio = await prisma.folio.findUnique({
       where: { booking_id: bookingId },
       include: { charges: true, invoice: true },
@@ -75,6 +91,7 @@ export class BillingService {
         "Not Found"
       );
     }
+    requireHotelAccess(actor, folio.hotel_id);
 
     return folio;
   }
@@ -86,7 +103,8 @@ export class BillingService {
    */
   async addCharge(
     folioId: string,
-    data: Omit<CreateChargeInput, "folio_id">
+    data: Omit<CreateChargeInput, "folio_id">,
+    actor: AuthClaims
   ) {
     const folio = await prisma.folio.findUnique({
       where: { folio_id: folioId },
@@ -99,6 +117,7 @@ export class BillingService {
         "Not Found"
       );
     }
+    requireHotelAccess(actor, folio.hotel_id);
     if (folio.status !== "open") {
       throw new AppError(
         409,
@@ -226,6 +245,23 @@ export class BillingService {
     return closed;
   }
 
+  /** Staff close operation with per-hotel authorization. */
+  async closeFolioAsActor(
+    folioId: string,
+    actor: AuthClaims,
+    data: CloseFolioInput = {}
+  ) {
+    const folio = await prisma.folio.findUnique({
+      where: { folio_id: folioId },
+      select: { hotel_id: true },
+    });
+    if (!folio) {
+      throw new AppError(404, `Folio with id ${folioId} not found`, "Not Found");
+    }
+    requireHotelAccess(actor, folio.hotel_id);
+    return this.closeFolio(folioId, data);
+  }
+
   /** Cierra el folio de una reserva por booking_id (usado por el consumer). */
   async closeFolioByBooking(bookingId: string) {
     const folio = await prisma.folio.findUnique({
@@ -248,18 +284,25 @@ export class BillingService {
   }
 
   /** Folios de un huésped (documento de arquitectura §4.7). */
-  async listFoliosByGuest(guestId: string) {
+  async listFoliosByGuest(guestId: string, actor: AuthClaims) {
+    if (actor.role !== "SUPER_ADMIN" && !BILLING_ROLES.includes(actor.role)) {
+      throw new AppError(403, "Insufficient role", "Forbidden");
+    }
     return prisma.folio.findMany({
-      where: { guest_id: guestId },
+      where: {
+        guest_id: guestId,
+        ...(actor.role === "SUPER_ADMIN" ? {} : { hotel_id: actor.hotel_id ?? "" }),
+      },
       include: { charges: true },
       orderBy: { created_at: "desc" },
     });
   }
 
   /** Facturas por hotel. */
-  async listInvoices(query: ListInvoicesQuery) {
+  async listInvoices(query: ListInvoicesQuery, actor: AuthClaims) {
+    const hotelId = scopedHotelId(query.hotel_id, actor);
     const folios = await prisma.folio.findMany({
-      where: { hotel_id: query.hotel_id },
+      where: { hotel_id: hotelId },
       select: { folio_id: true },
     });
     return prisma.invoice.findMany({
@@ -269,7 +312,7 @@ export class BillingService {
   }
 
   /** Factura con su folio y cargos. */
-  async getInvoice(id: string) {
+  async getInvoice(id: string, actor: AuthClaims) {
     const invoice = await prisma.invoice.findUnique({
       where: { invoice_id: id },
       include: { folio: { include: { charges: true } } },
@@ -282,6 +325,7 @@ export class BillingService {
         "Not Found"
       );
     }
+    requireHotelAccess(actor, invoice.folio.hotel_id);
 
     return invoice;
   }

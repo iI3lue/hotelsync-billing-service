@@ -38,7 +38,10 @@ describe("BillingController.getFolioByBooking", () => {
       next as never
     );
 
-    expect(spy).toHaveBeenCalledWith(BOOKING_ID);
+    expect(spy).toHaveBeenCalledWith(
+      BOOKING_ID,
+      expect.objectContaining({ scope: "global" })
+    );
     expect(json).toHaveBeenCalledWith(folio);
     expect(next).not.toHaveBeenCalled();
   });
