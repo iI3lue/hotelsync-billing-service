@@ -147,7 +147,7 @@ export class BillingService {
 
   /**
    * Abre el folio de una reserva con el cargo inicial de habitación.
-   * Idempotente por booking_id: el replay de `booking.created` devuelve
+   * Idempotente por booking_id: el replay de `booking.confirmed` devuelve
    * el folio existente sin duplicar el cargo.
    */
   async openFolio(bookingId: string) {

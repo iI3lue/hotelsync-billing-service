@@ -10,7 +10,7 @@ datasource db {
 
 /**
  * Folio de cargos por estancia (BL-1).
- * Se abre con `booking.created` (cargo inicial = tarifa de la reserva) y
+ * Se abre con `booking.confirmed` (cargo inicial = tarifa de la reserva) y
  * acumula cargos de servicios (minibar, spa, restaurante) hasta el cierre.
  * `booking_id` es la clave de idempotencia. Sin FK entre bases: la
  * referencia a Booking/Property es solo el UUID.

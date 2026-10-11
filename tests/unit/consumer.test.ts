@@ -8,16 +8,26 @@ describe("handleBillingEvent", () => {
     jest.restoreAllMocks();
   });
 
-  it("should open the folio on booking.created", async () => {
+  it("should open the folio only on booking.confirmed", async () => {
     const openSpy = jest
       .spyOn(billingService, "openFolio")
       .mockResolvedValue({ folio_id: "f1" } as any);
+
+    await handleBillingEvent({} as any, "booking.confirmed", {
+      booking_id: BOOKING_ID,
+    } as any);
+
+    expect(openSpy).toHaveBeenCalledWith(BOOKING_ID);
+  });
+
+  it("should not open a folio for a pending booking.created event", async () => {
+    const openSpy = jest.spyOn(billingService, "openFolio");
 
     await handleBillingEvent({} as any, "booking.created", {
       booking_id: BOOKING_ID,
     } as any);
 
-    expect(openSpy).toHaveBeenCalledWith(BOOKING_ID);
+    expect(openSpy).not.toHaveBeenCalled();
   });
 
   it("should close the folio on checkout.completed", async () => {
