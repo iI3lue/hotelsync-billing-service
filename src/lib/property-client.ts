@@ -1,3 +1,4 @@
+import { gatewayHeaders } from "../middleware/gateway.js";
 import { AppError } from "../middleware/error-handler.js";
 
 const PROPERTY_API =
@@ -20,6 +21,7 @@ export async function fetchHotel(id: string): Promise<HotelRef | null> {
   let res: Response;
   try {
     res = await fetch(`${PROPERTY_API}/hotels/${id}`, {
+      headers: gatewayHeaders(),
       signal: AbortSignal.timeout(3000),
     });
   } catch {

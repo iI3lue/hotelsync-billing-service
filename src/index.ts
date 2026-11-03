@@ -1,4 +1,5 @@
 import express from "express";
+import { requireGateway } from "./middleware/gateway.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import foliosRouter from "./routes/folios.js";
 import chargesRouter from "./routes/charges.js";
@@ -10,6 +11,8 @@ import { broker } from "./lib/broker.js";
 
 const app = express();
 const PORT = process.env.PORT || 3007;
+
+app.use(requireGateway);
 
 app.use(express.json());
 

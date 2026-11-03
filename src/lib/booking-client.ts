@@ -1,3 +1,4 @@
+import { gatewayHeaders } from "../middleware/gateway.js";
 import { AppError } from "../middleware/error-handler.js";
 
 const BOOKING_API =
@@ -25,9 +26,10 @@ async function bookingFetch<T>(path: string): Promise<T | null> {
   let res: Response;
   try {
     res = await fetch(`${BOOKING_API}${path}`, {
-      headers: BOOKING_SERVICE_KEY
-        ? { "x-billing-key": BOOKING_SERVICE_KEY }
-        : {},
+      headers: {
+        ...gatewayHeaders(),
+        ...(BOOKING_SERVICE_KEY ? { "x-billing-key": BOOKING_SERVICE_KEY } : {}),
+      },
       signal: AbortSignal.timeout(3000),
     });
   } catch {
